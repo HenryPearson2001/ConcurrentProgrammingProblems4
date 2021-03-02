@@ -44,6 +44,8 @@ object pairMonitorTest {
 
     private var pairs = List[pair]()
 
+    private var myPairMonitor = new pairMonitor
+
     // to communicate between clients and test - for simplicity women are first string
     private type pair = (String, String)
     val pairChan = ManyOne[pair]
@@ -86,7 +88,6 @@ object pairMonitorTest {
     }
 
     def doTest = {
-        myPairMonitor = new pairMonitor
         val numberOfMen = Random.nextInt(N)
         val men = Array.fill(numberOfMen)(Random.alphanumeric.take(10).mkString)
         val women = Array.fill(N - numberOfMen)(Random.alphanumeric.take(10).mkString)

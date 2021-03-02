@@ -1,35 +1,46 @@
 import io.threadcso._
 import scala.collection.mutable.Queue
+import scala.collection.immutable.List
 
 class pairMonitor {
 
-    private type person = (Chan[String], String)
+    private type person = (Condition, String)
     private val men = new Queue[person]()
     private val women = new Queue[person]()
+    private var pairs = List[(String, String)]()
 
-    def manSync(me: String): String = synchronized {
+    private val monitor = new Monitor
+
+
+    def manSync(me: String): String = monitor.withLock {
         if (!women.isEmpty) {
-            val (chan, id) = women.dequeue
-            chan!(me)
+            val (condition, id) = women.dequeue
+            pairs = (me, id)::pairs
+            condition.signal
             id
         }
         else {
-            val myChan = OneOne[String]
-            men.enqueue((myChan, me))
-            myChan?()
+            val myCondition = monitor.newCondition
+            men.enqueue((myCondition, me))
+            myCondition.await()
+            val (_, id) = pairs(pairs.indexWhere(_._1 == me))
+            id
         }
     }
 
-    def womanSync(me: String): String = synchronized {
+    def womanSync(me: String): String = monitor.withLock {
         if (!men.isEmpty) {
-            val (chan, id) = men.dequeue
-            chan!(me)
+            val (condition, id) = men.dequeue
+            pairs = (id, me)::pairs
+            condition.signal
             id
         }
         else {
-            val myChan = OneOne[String]
-            women.enqueue((myChan, me))
-            myChan?()
+            val myCondition = monitor.newCondition
+            women.enqueue((myCondition, me))
+            myCondition.await()
+            val (id, _) = pairs(pairs.indexWhere(_._2 == me))
+            id
         }
     }
 
@@ -40,7 +51,7 @@ import scala.util.Random
 
 object pairMonitorTest {
     // N is number of clients, time is time server is run for
-    private val N = 50; private val time = 1
+    private val N = 5; private val time = 1
 
     private var pairs = List[pair]()
 
@@ -51,7 +62,8 @@ object pairMonitorTest {
     val pairChan = ManyOne[pair]
 
     def receivePairs = proc {
-        repeat {
+        for (i <- 0 until N + N) {
+            // println(i)
             pairs = pairChan?()::pairs
         }
     }
@@ -89,8 +101,8 @@ object pairMonitorTest {
 
     def doTest = {
         val numberOfMen = Random.nextInt(N)
-        val men = Array.fill(numberOfMen)(Random.alphanumeric.take(10).mkString)
-        val women = Array.fill(N - numberOfMen)(Random.alphanumeric.take(10).mkString)
+        val men = Array.fill(N)(Random.alphanumeric.take(10).mkString)
+        val women = Array.fill(N)(Random.alphanumeric.take(10).mkString)
         val clients = (|| (for (person <- men) yield client(person, false))) || (|| (for (person <- women) yield client(person, true)))
         run (clients || receivePairs)
         assert(checkPairs(men, women))

@@ -4,12 +4,8 @@ import scala.collection.mutable.Queue
 class pairMonitor {
 
     private type person = (Chan[String], String)
-    private men = new Queue[person]()
-    private women = new Queue[person]()
-
-    private monitor = new Monitor
-
-    private val menNonEmpty, womenNonEmpty = monitor.newCondition
+    private val men = new Queue[person]()
+    private val women = new Queue[person]()
 
     def manSync(me: String): String = synchronized {
         if (!women.isEmpty) {
